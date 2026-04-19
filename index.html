@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ZenithCrypto DB Setup</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#04060e;color:#eaecf0;font-family:monospace;padding:20px;min-height:100vh}
+h1{font-size:1rem;color:#4f8ef7;margin-bottom:6px;letter-spacing:2px}
+.sub{font-size:.65rem;color:#6c7a96;margin-bottom:20px}
+#log{background:#080d18;border:1px solid #1a2235;border-radius:10px;padding:14px;font-size:.65rem;line-height:1.9;min-height:200px;max-height:60vh;overflow-y:auto;margin-bottom:16px;word-break:break-all}
+.ok{color:#0ecb81}.err{color:#f6465d}.warn{color:#e8b84b}.info{color:#4f8ef7}.done{color:#9b7cf7;font-weight:700}
+button{width:100%;background:linear-gradient(135deg,#4f8ef7,#7c5df7);color:#000;border:none;border-radius:12px;padding:16px;font-family:monospace;font-size:.8rem;font-weight:900;cursor:pointer;letter-spacing:1px;margin-bottom:10px}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btn2{background:rgba(246,70,93,.12);color:#f6465d;border:1px solid rgba(246,70,93,.25)}
+#status{text-align:center;font-size:.7rem;color:#6c7a96;margin-top:8px}
+.badge{display:inline-block;background:rgba(14,203,129,.12);color:#0ecb81;padding:4px 10px;border-radius:6px;font-size:.6rem;margin-top:10px}
+</style>
+</head>
+<body>
+<h1>⚡ ZENITHCRYPTO DB SETUP</h1>
+<p class="sub">Initializes all Firebase collections</p>
+
+<div id="log"><span class="info">Ready. Press INITIALIZE to start.</span></div>
+
+<button id="btn-init" onclick="runInit()">🚀 INITIALIZE DATABASE</button>
+<button class="btn2" onclick="clearLog()">🗑 CLEAR LOG</button>
+<div id="status"></div>
+
+<script>
+var db, rtdb, FS, auth;
+var logEl = document.getElementById('log');
+var btn = document.getElementById('btn-init');
+
+function log(msg, type) {
+  var line = document.createElement('div');
+  line.className = type || 'info';
+  line.textContent = (new Date().toLocaleTimeString()) + '  ' + msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() {
+  logEl.innerHTML = '<span class="info">Log cleared.</span>';
+}
+
+// Init Firebase
+try {
+  var fc = {
+    apiKey: "AIzaSyCHRwq_D0Wm83fI6MpEpOm-f9Iiplg7T5Q",
+    authDomain: "titan-apex-multiplayer.firebaseapp.com",
+    projectId: "titan-apex-multiplayer",
+    storageBucket: "titan-apex-multiplayer.firebasestorage.app",
+    messagingSenderId: "413850073481",
+    appId: "1:413850073481:web:834def59f40794d2180958",
+    databaseURL: "https://titan-apex-multiplayer-default-rtdb.asia-southeast1.firebasedatabase.app"
+  };
+  if (!firebase.apps.length) firebase.initializeApp(fc);
+  db = firebase.firestore();
+  auth = firebase.auth();
+  rtdb = firebase.database();
+  FS = firebase.firestore;
+  log('Firebase connected ✓', 'ok');
+} catch(e) {
+  log('Firebase error: ' + e.message, 'err');
+}
+
+async function runInit() {
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  document.getElementById('status').textContent = 'Please wait, do not close...';
+
+  try {
+    // CONFIG
+    log('Setting up config...', 'info');
+    await db.collection('config').doc('maintenance').set({
+      active: false, message: '', updatedAt: FS.FieldValue.serverTimestamp()
+    });
+    log('config/maintenance ✓', 'ok');
+
+    await db.collection('config').doc('settings').set({
+      minWithdraw: 10, maxDailySpins: 3, spinCooldownHours: 24,
+      tradeFeePercent: 0.1, referralBonus: 5.0, dailyRewardBase: 0.05,
+      streakBonusPerWeek: 0.10, maxLockoutLevel: 20,
+      vipMultipliers: { bronze: 1.1, silver: 1.25, gold: 1.5, platinum: 2.0 },
+      maxChatHistory: 200, auctionFeePercent: 2.5,
+      forgeCostBase: 50, seasonDurationDays: 30
+    });
+    log('config/settings ✓', 'ok');
+
+    await db.collection('config').doc('announcement').set({
+      active: false, title: '', body: '', type: 'info'
+    });
+    log('config/announcement ✓', 'ok');
+
+    // SEASON
+    log('Setting up season...', 'info');
+    await db.collection('seasons').doc('current').set({
+      id: 'S1', name: 'Season 1 — Genesis',
+      startDate: FS.FieldValue.serverTimestamp(),
+      endDate: null, active: true, topPlayers: [],
+      rewards: {
+        rank1: { bal: 500, zenz: 1000, badge: 'CHAMPION' },
+        rank2: { bal: 250, zenz: 500, badge: 'RUNNER-UP' },
+        rank3: { bal: 100, zenz: 250, badge: 'BRONZE' },
+        top10: { bal: 50, zenz: 100, badge: 'TOP-10' },
+        top50: { bal: 10, zenz: 25, badge: 'TOP-50' }
+      }
+    });
+    log('seasons/current ✓', 'ok');
+
+    // LEADERBOARD
+    log('Setting up leaderboard...', 'info');
+    await db.collection('leaderboard').doc('global').set({
+      updatedAt: FS.FieldValue.serverTimestamp(), entries: {}
+    });
+    log('leaderboard/global ✓', 'ok');
+
+    // BOOSTS
+    log('Setting up boosts...', 'info');
+    var boosts = [
+      { id: 'b2x1h',   name: '2x Mine 1H',   desc: '2x mining for 1 hour',   price: 5,  mult: 2, durationMs: 3600000, type: 'mine', icon: '⚡', active: true },
+      { id: 'b3x30m',  name: '3x Mine 30M',  desc: '3x mining for 30 min',   price: 8,  mult: 3, durationMs: 1800000, type: 'mine', icon: '🔥', active: true },
+      { id: 'bxpx2',   name: '2x XP 1H',     desc: 'Double XP for 1 hour',   price: 6,  mult: 2, durationMs: 3600000, type: 'xp',   icon: '⭐', active: true },
+      { id: 'bspinx2', name: '+3 Spins',      desc: 'Add 3 spins instantly',  price: 3,  spins: 3,                    type: 'spin', icon: '🎰', active: true },
+      { id: 'bvip7d',  name: 'VIP Silver 7D', desc: 'Silver VIP for 7 days',  price: 15, vip: 'silver', durationMs: 604800000, type: 'vip', icon: '👑', active: true }
+    ];
+    for (var b of boosts) {
+      await db.collection('boosts').doc(b.id).set(b);
+      log('boost/' + b.id + ' ✓', 'ok');
+    }
+
+    // COLLECTIONS INIT
+    log('Creating empty collections...', 'info');
+    var cols = ['chat','orders','tokens','auctions','clans','nfts','dao','tournaments','referrals','forge','notifications'];
+    for (var col of cols) {
+      await db.collection(col).doc('_init').set({ _init: true, ts: FS.FieldValue.serverTimestamp() });
+      log(col + '/_init ✓', 'ok');
+    }
+
+    // REALTIME DB
+    log('Setting up Realtime DB market nodes...', 'info');
+    var prices = { BTC:97000, ETH:3400, BNB:620, SOL:185, XRP:0.62, DOGE:0.38, ADA:0.48, TRX:0.12, MATIC:0.85, SHIB:0.000024 };
+    var upd = {};
+    for (var sym of Object.keys(prices)) {
+      upd['market/' + sym] = { price: prices[sym], chg24h: 0, vol: 0, high: prices[sym], low: prices[sym], ts: Date.now() };
+    }
+    upd['market/custom'] = {};
+    upd['admins/Bj3hFdqE3xhvtWE7gI0a70KQCze2'] = true;
+    await rtdb.ref().update(upd);
+    log('Realtime DB market nodes ✓', 'ok');
+
+    // DONE
+    log('', 'info');
+    log('══════════════════════════════', 'done');
+    log('DATABASE FULLY INITIALIZED! ✓', 'done');
+    log('══════════════════════════════', 'done');
+    log('All ' + (11 + boosts.length) + ' collections ready.', 'ok');
+    log('You can close this page now.', 'warn');
+    document.getElementById('status').textContent = '✓ Done! Database is ready.';
+    btn.textContent = '✓ COMPLETE';
+    btn.style.background = 'linear-gradient(135deg,#0ecb81,#06a16a)';
+
+  } catch(e) {
+    log('ERROR: ' + e.message, 'err');
+    log('Check Firebase rules and try again.', 'warn');
+    btn.disabled = false;
+    btn.textContent = '🔄 RETRY';
+    document.getElementById('status').textContent = 'Failed. Check log above.';
+  }
+}
+</script>
+</body>
+</html>
